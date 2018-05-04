@@ -16,6 +16,7 @@ import copy
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 #---data loading----------------------------------------------
+#---training
 data_transform = transforms.Compose([
         transforms.Resize((32,32)),
         transforms.ToTensor(),
@@ -29,6 +30,14 @@ dataset_loader = torch.utils.data.DataLoader(image_dataset,
                                              num_workers=4)
 dataset_sizes = len(image_dataset)
 class_names = image_dataset.classes
+
+#---test
+image_dataset_test = datasets.ImageFolder(root='../../data/GTSRB/Final_Test/Images',
+                                           transform=data_transform)
+dataset_loader_test = torch.utils.data.DataLoader(image_dataset_test,
+                                             batch_size=64, shuffle=True,
+                                             num_workers=4)
+
 #------------------------------------------------------------
 
 #---try to show the image------------------------------------
@@ -120,7 +129,7 @@ def test():
     test_loss = 0
     correct = 0
     with torch.no_grad():
-        for data, target in test_loader:
+        for data, target in dataset_loader_test:
             data, target = data.to(device), target.to(device)
             output = model(data)
             test_loss += F.nll_loss(output, target, size_average=False).item() # sum up batch loss
@@ -136,14 +145,14 @@ def test():
 
             correct += pred.eq(target.view_as(pred)).sum().item()
 
-    test_loss /= len(test_loader.dataset)
+    test_loss /= len(dataset_loader_test.dataset)
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
+        test_loss, correct, len(dataset_loader_test.dataset),
+        100. * correct / len(dataset_loader_test.dataset)))
 #--------------------------------------------------------------
 
 num_train_epochs = 1
 for epoch in range(1, num_train_epochs + 1):
     train(epoch)
 
-#test()
+test()
