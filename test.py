@@ -2,6 +2,7 @@ from __future__ import print_function, division
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim import lr_scheduler
 import numpy as np
@@ -16,12 +17,12 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 #---data loading----------------------------------------------
 data_transform = transforms.Compose([
-        transforms.Scale((32,32)),
+        transforms.Resize((32,32)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
     ])
-image_dataset = datasets.ImageFolder(root='../data/GTSRB/Final_Training/Images',
+image_dataset = datasets.ImageFolder(root='../../data/GTSRB/Final_Training/Images',
                                            transform=data_transform)
 dataset_loader = torch.utils.data.DataLoader(image_dataset,
                                              batch_size=64, shuffle=True,
@@ -45,32 +46,46 @@ def imshow(inp, title=None):
 
 
 # Get a batch of training data
-inputs, classes = next(iter(dataset_loader))
+#inputs, classes = next(iter(dataset_loader))
 
 # Make a grid from batch
-out = torchvision.utils.make_grid(inputs)
+#out = torchvision.utils.make_grid(inputs)
 
-imshow(out, title=[class_names[x] for x in classes])
+#imshow(out, title=[class_names[x] for x in classes])
 #---------------------------------------------------------------
 
 #---construct the network---------------------------------------
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(1, 10, kernel_size=5, padding=2)    # FYI: In the lecture I forgot to add the padding, thats why the feature size calculation was wrong
-        self.conv2 = nn.Conv2d(10, 20, kernel_size=5, padding=2)
-        self.conv2_drop = nn.Dropout2d()
-        self.fc1 = nn.Linear(980, 50)
-        self.fc2 = nn.Linear(50, 10)
+
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=3)
+        self.conv2 = nn.Conv2d(32, 32, kernel_size=3)
+
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=3)
+        self.conv4 = nn.Conv2d(64, 64, kernel_size=3)
+        self.conv5 = nn.Conv2d(64, 64, kernel_size=3)
+
+        self.linear1 = nn.Linear(64 * 4 * 4, 512)
+        self.linear2 = nn.Linear(512, 43)
 
     def forward(self, x):
-        x = F.relu(F.max_pool2d(self.conv1(x), 2))
-        x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
-        x = x.view(-1, 980)   # Flatten data for fully connected layer. Input size is 28*28, we have 2 pooling layers so we pool the spatial size down to 7*7. With 20 feature maps as the output of the previous conv we have in total 7x7x20 = 980 features.
-        x = F.relu(self.fc1(x))
-        x = F.dropout(x, training=self.training)
-        x = self.fc2(x)
-        return F.log_softmax(x, dim=1)
+
+        x = F.relu(self.conv1(x.float()))
+        x = F.relu(self.conv2(x))
+        x = F.max_pool2d(x, kernel_size=2, stride=2)
+
+        x = F.relu(self.conv3(x))
+        x = F.relu(self.conv4(x))
+        x = F.relu(self.conv5(x))
+        x = F.max_pool2d(x, kernel_size=2, stride=2)
+
+        x = x.view(x.size(0), -1)
+        x = F.relu(self.linear1(x))
+        x = F.dropout(x)
+        x = F.log_softmax(self.linear2(x), dim=1)
+
+        return x
 
 # We create the network, shift it on the GPU and define a optimizer on its parameters
 model = Net().to(device)
@@ -96,8 +111,8 @@ def train(epoch):
         optimizer.step()
         if batch_idx % 10 == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(data), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), loss.item()))
+                epoch, batch_idx * len(data), len(dataset_loader.dataset),
+                100. * batch_idx / len(dataset_loader), loss.item()))
 
 #---testing function--------------------------------------------
 def test():
@@ -127,7 +142,7 @@ def test():
         100. * correct / len(test_loader.dataset)))
 #--------------------------------------------------------------
 
-num_train_epochs = 10
+num_train_epochs = 1
 for epoch in range(1, num_train_epochs + 1):
     train(epoch)
 
