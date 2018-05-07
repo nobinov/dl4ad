@@ -19,6 +19,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 #params
 split_ratio = 0.2 # how much data that will be used as validation data
 random_seed = 123 #seed for data shuffling
+learning_rate = 0.01
+epoch_num = 10
 
 #---data loading----------------------------------------------
 #---training
@@ -135,7 +137,7 @@ class Net(nn.Module):
 
 # We create the network, shift it on the GPU and define a optimizer on its parameters
 model = Net().to(device)
-optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.5)
+optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.5)
 #---------------------------------------------------------------
 
 #---training function-------------------------------------------
@@ -188,8 +190,8 @@ def test():
         100. * correct / len(valid_loader.dataset)))
 #--------------------------------------------------------------
 
-#num_train_epochs = 1
-#for epoch in range(1, num_train_epochs + 1):
-#    train(epoch)
+num_train_epochs = epoch_num
+for epoch in range(1, num_train_epochs + 1):
+    train(epoch)
 
-#test()
+test()
