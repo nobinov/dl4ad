@@ -119,13 +119,13 @@ class Net(nn.Module):
 
     def forward(self, x):
 
-        x = F.relu(F.batch_norm(self.conv1(x.float())))
-        x = F.relu(F.batch_norm(self.conv2(x)))
+        x = F.relu(self.conv1(x.float()))
+        x = F.relu(self.conv2(x))
         x = F.max_pool2d(x, kernel_size=2, stride=2)
 
-        x = F.relu(F.batch_norm(self.conv3(x)))
-        x = F.relu(F.batch_norm(self.conv4(x)))
-        x = F.relu(F.batch_norm(self.conv5(x)))
+        x = F.relu(self.conv3(x))
+        x = F.relu(self.conv4(x))
+        x = F.relu(self.conv5(x))
         x = F.max_pool2d(x, kernel_size=2, stride=2)
 
         x = x.view(x.size(0), -1)
