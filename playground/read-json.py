@@ -21,7 +21,15 @@ f.close()
 
 imgH = img_json['imgHeight']
 imgW = img_json['imgWidth']
-roads = img_json['objects']['label'=='road']['polygon']
+roads = img_json['objects']['label'=='car']['polygon']
+#obj = img_json['objects']['label'=='car']
+#for key, value in obj.items():
+#	print(key, value)
+
+
+
+print(roads)
+
 img_poly = []
 for i in roads:
 	img_poly.append((i[0] , i[1]))
@@ -30,7 +38,7 @@ print(img_poly)
 print(roads)
 print(len(roads))
 
-back = Image.new('RGBA',(imgW,imgH), (0,0,0,255))
+#back = Image.new('RGBA',(imgW,imgH), (0,0,0,255))
 poly = Image.new('RGBA',(imgW,imgH), (0,0,0,255))
 pdraw = ImageDraw.Draw(poly)
 pdraw.polygon(img_poly, fill=(255,0,0,255))

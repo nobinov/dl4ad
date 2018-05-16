@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 import json
-import cv2
 import Image
 import ImageDraw
 
@@ -57,15 +56,11 @@ class CityScapeDataset(Dataset):
 		#complete path for each file
 		img_real_fn = os.path.join( rt_im, cf, fn + "leftImg8bit.png")
 		img_color_fn = os.path.join( rt_gt, cf, fn + gtt + "_color.png")
-		img_instancelds_fn = os.path.join( rt_gt, cf, fn + gtt + "_instanceIds.png")
-		img_labelids_fn = os.path.join( rt_gt, cf, fn + gtt + "_labelIds.png")
 		img_polygon_fn = os.path.join( rt_gt, cf, fn + gtt + "_polygons.json")
 
 		#read the file
 		img_real = io.imread(img_real_fn)
 		img_color = io.imread(img_color_fn)
-		img_instancelds = io.imread(img_instancelds_fn)
-		img_labelids = io.imread(img_labelids_fn)
 		with open(img_polygon_fn) as f:
 			img_polygon = json.load(f)
 		f.close()
@@ -74,8 +69,6 @@ class CityScapeDataset(Dataset):
 		sample = {
 			'image' : img_real,
 			'gt_color' : img_color,
-			'gt_instancelds' : img_instancelds,
-			'gt_label' : img_labelids,
 			'gt_polygon' : img_polygon
 		}
 
@@ -90,53 +83,45 @@ class ToTensor(object):
 	def __call__(self, sample):
 		image = sample['image'] 
 		gt_color = sample['gt_color']
-		gt_instancelds = sample['gt_instancelds']
-		gt_label = sample['gt_label']
 		gt_polygon = sample['gt_polygon']
 
-		#image = image.transpose((2,0,1))
-		#gt_color = gt_color.transpose((2,0,1))
 		
 		return{
 			'image' : torch.from_numpy(image),
 			'gt_color' : torch.from_numpy(gt_color),
-			'gt_instancelds' : gt_instancelds, #error when torchified,
-			'gt_label' : torch.from_numpy(gt_label),
 			'gt_polygon' : gt_polygon
 		}
 
 class OnlyRoads(object):
+	"""	Recreate ground truth only for road class and non-road class."""
 	def __call__(self, sample):
 		image = sample['image'] 
 		gt_color = sample['gt_color']
-		gt_instancelds = sample['gt_instancelds']
-		gt_label = sample['gt_label']
-		gt_polygon = sample['gt_polygon']
+		gt_polygon = pd.DataFrame(sample['gt_polygon'])
 
-		imgH = gt_polygon['imgHeight']
-		imgW = gt_polygon['imgWidth']
-		poly_json = gt_polygon['objects']['label'=='car']['polygon']
-		poly_seq = []
-		for i in poly_json:
-			poly_seq.append((i[0] , i[1]))
+		h, w = gt_polygon['imgHeight'][0], gt_polygon['imgWidth'][0]
+		polygon_road = []
+		for item in gt_polygon.itertuples(index=True):
+			label = getattr(item, 'objects')['label']
+			if label=='road':
+				polygon = getattr(item, 'objects')['polygon']
+				tmp = []
+				for i in polygon:
+					tmp.append((i[0] , i[1]))
+				polygon_road.append(tmp)
 
-		poly = Image.new('RGBA',(imgW,imgH), (0,0,0,255))
+		poly = Image.new('RGB',(w,h), (0,0,0))
 		pdraw = ImageDraw.Draw(poly)
-		pdraw.polygon(poly_seq, fill=(255,0,0,255))
+		for pl in polygon_road:
+			pdraw.polygon(pl, fill=(255,0,0))
 
 		poly2 = np.array(poly)
 
 		return{
 			'image' : image,
 			'gt_color' : poly2,
-			'gt_instancelds' : gt_instancelds,
-			'gt_label' : gt_label,
 			'gt_polygon' : gt_polygon
 		}
-
-
-
-		#TODO make a process to create new groundtruth with only road class
 
 
 class Rescale(object):
@@ -155,14 +140,8 @@ class Rescale(object):
     def __call__(self, sample):
         image = sample['image'] 
         gt_color = sample['gt_color']
-        gt_instancelds = sample['gt_instancelds']
-        gt_label = sample['gt_label']
         gt_polygon = sample['gt_polygon']
 
-        #print(gt_color.shape)
-        #print(gt_color[1000])
-        #with open('color-ori.txt','w') as file:
-        #	file.write(gt_color)
 
         h, w = image.shape[:2]
         if isinstance(self.output_size, int):
@@ -175,20 +154,69 @@ class Rescale(object):
 
         new_h, new_w = int(new_h), int(new_w)
 
-        img = transform.resize(image, (new_h, new_w))
-        gt_col = transform.resize(gt_color, (new_h, new_w))
-        gt_instlds = transform.resize(gt_instancelds, (new_h, new_w))
-        gt_lab = transform.resize(gt_label, (new_h, new_w))
+        img = transform.resize(image, (new_h, new_w), order=0)
+        gt_col = transform.resize(gt_color, (new_h, new_w), order=0)
 
-        #print(gt_col.shape)
-        #print(gt_col[1000])
-        #with open('color-tf.txt','w') as file:
-       # 	file.write(gt_col)
 
         return {'image': img,
         		'gt_color' : gt_col,
-        		'gt_instancelds' : gt_instlds,
-        		'gt_label' : gt_lab,
+        		'gt_polygon': gt_polygon}
+
+
+class Rotate(object):
+    """Rotate an image to the desired angle.
+
+    Args:
+        rotate_val (int): Desired rotation value, in degree.
+    """
+
+    def __init__(self, rotate_val):
+        assert isinstance(rotate_val, (int))
+        self.rotate_val = rotate_val
+
+    def __call__(self, sample):
+        image = sample['image'] 
+        gt_color = sample['gt_color']
+        gt_polygon = sample['gt_polygon']
+
+        img = transform.rotate(image, self.rotate_val, resize=True, order=0)
+        gt_col = transform.rotate(gt_color, self.rotate_val, resize=True, order=0)
+
+
+        return {'image': img,
+        		'gt_color' : gt_col,
+        		'gt_polygon': gt_polygon}
+
+class FlipUD(object):
+    """Flip the image upside down"""
+
+    def __call__(self, sample):
+        image = sample['image'] 
+        gt_color = sample['gt_color']
+        gt_polygon = sample['gt_polygon']
+
+        img = np.flipud(image).copy()
+        gt_col = np.flipud(gt_color).copy()
+
+
+        return {'image': img,
+        		'gt_color' : gt_col,
+        		'gt_polygon': gt_polygon}
+
+class FlipLR(object):
+    """Flip the image left to right"""
+
+    def __call__(self, sample):
+        image = sample['image'] 
+        gt_color = sample['gt_color']
+        gt_polygon = sample['gt_polygon']
+
+        img = np.fliplr(image).copy()
+        gt_col = np.fliplr(gt_color).copy()
+
+
+        return {'image': img,
+        		'gt_color' : gt_col,
         		'gt_polygon': gt_polygon}
 
 #------------------------------------------------------------
@@ -196,6 +224,9 @@ class Rescale(object):
 compose_tf = transforms.Compose([
 								OnlyRoads(),
 								Rescale(100),
+								Rotate(0),
+								FlipUD(),
+								FlipLR(),
 								ToTensor()
 								])
 
@@ -208,21 +239,13 @@ print(len(city_dataset))
 for i in range(len(city_dataset)):
 	sample = city_dataset[i]
 	print(i, sample['image'].shape, 
-		sample['gt_color'].shape, 
-		sample['gt_instancelds'].shape, 
-		sample['gt_label'].shape)
+		sample['gt_color'].shape) 
 	plt.imshow(sample['image'])
 	plt.pause(1)
 	plt.imshow(sample['gt_color'])
-	#print(sample['image'])
-	#print(sample['gt_color'])
-	#print(sample['gt_polygon']['objects']['label'=='road']['polygon'])
 
 
 	plt.pause(1)
-
-	#if i==10:
-	#	break
 	
 
 train_loader = torch.utils.data.DataLoader(city_dataset, 
@@ -231,21 +254,6 @@ train_loader = torch.utils.data.DataLoader(city_dataset,
 print(len(train_loader))
 
 
-
-#for i in range(len(city_dataset)):
-#	sample = city_dataset[i]
-#	print(i, sample['image'].shape, 
-#		sample['gt_color'].shape, 
-#		sample['gt_instancelds'].shape, 
-#		sample['gt_label'].shape)
-#	plt.imshow(sample['gt_color'])
-#	plt.pause(0.1)
-	#break
-	#print(sample['image'])
-	#ax = plt.subplot(1, 4, i + 1)
-	#plt.tight_layout()
-	#ax.set_title('Sample #{}'.format(i))
-	#ax.axis('off')
 
 def imshow(inp, title=None):
     """Imshow for Tensor."""

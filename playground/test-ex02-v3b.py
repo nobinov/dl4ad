@@ -57,25 +57,26 @@ class CityScapeDataset(Dataset):
 		#complete path for each file
 		img_real_fn = os.path.join( rt_im, cf, fn + "leftImg8bit.png")
 		img_color_fn = os.path.join( rt_gt, cf, fn + gtt + "_color.png")
-		img_instancelds_fn = os.path.join( rt_gt, cf, fn + gtt + "_instanceIds.png")
-		img_labelids_fn = os.path.join( rt_gt, cf, fn + gtt + "_labelIds.png")
+		#img_instancelds_fn = os.path.join( rt_gt, cf, fn + gtt + "_instanceIds.png")
+		#img_labelids_fn = os.path.join( rt_gt, cf, fn + gtt + "_labelIds.png")
 		img_polygon_fn = os.path.join( rt_gt, cf, fn + gtt + "_polygons.json")
 
 		#read the file
 		img_real = io.imread(img_real_fn)
 		img_color = io.imread(img_color_fn)
-		img_instancelds = io.imread(img_instancelds_fn)
-		img_labelids = io.imread(img_labelids_fn)
+		#img_instancelds = io.imread(img_instancelds_fn)
+		#img_labelids = io.imread(img_labelids_fn)
 		with open(img_polygon_fn) as f:
 			img_polygon = json.load(f)
 		f.close()
+		#img_polygon = pd.read_json(img_polygon_fn)
 
 		#creating sample tuple
 		sample = {
 			'image' : img_real,
 			'gt_color' : img_color,
-			'gt_instancelds' : img_instancelds,
-			'gt_label' : img_labelids,
+			#'gt_instancelds' : img_instancelds,
+			#'gt_label' : img_labelids,
 			'gt_polygon' : img_polygon
 		}
 
@@ -90,8 +91,8 @@ class ToTensor(object):
 	def __call__(self, sample):
 		image = sample['image'] 
 		gt_color = sample['gt_color']
-		gt_instancelds = sample['gt_instancelds']
-		gt_label = sample['gt_label']
+		#gt_instancelds = sample['gt_instancelds']
+		#gt_label = sample['gt_label']
 		gt_polygon = sample['gt_polygon']
 
 		#image = image.transpose((2,0,1))
@@ -100,8 +101,8 @@ class ToTensor(object):
 		return{
 			'image' : torch.from_numpy(image),
 			'gt_color' : torch.from_numpy(gt_color),
-			'gt_instancelds' : gt_instancelds, #error when torchified,
-			'gt_label' : torch.from_numpy(gt_label),
+			#'gt_instancelds' : gt_instancelds, #error when torchified,
+			#'gt_label' : torch.from_numpy(gt_label),
 			'gt_polygon' : gt_polygon
 		}
 
@@ -109,28 +110,33 @@ class OnlyRoads(object):
 	def __call__(self, sample):
 		image = sample['image'] 
 		gt_color = sample['gt_color']
-		gt_instancelds = sample['gt_instancelds']
-		gt_label = sample['gt_label']
-		gt_polygon = sample['gt_polygon']
+		#gt_instancelds = sample['gt_instancelds']
+		#gt_label = sample['gt_label']
+		gt_polygon = pd.DataFrame(sample['gt_polygon'])
 
-		imgH = gt_polygon['imgHeight']
-		imgW = gt_polygon['imgWidth']
-		poly_json = gt_polygon['objects']['label'=='car']['polygon']
-		poly_seq = []
-		for i in poly_json:
-			poly_seq.append((i[0] , i[1]))
+		h, w = gt_polygon['imgHeight'][0], gt_polygon['imgWidth'][0]
+		polygon_road = []
+		for item in gt_polygon.itertuples(index=True):
+			label = getattr(item, 'objects')['label']
+			if label=='road':
+				polygon = getattr(item, 'objects')['polygon']
+				tmp = []
+				for i in polygon:
+					tmp.append((i[0] , i[1]))
+				polygon_road.append(tmp)
 
-		poly = Image.new('RGBA',(imgW,imgH), (0,0,0,255))
+		poly = Image.new('RGB',(w,h), (0,0,0,255))
 		pdraw = ImageDraw.Draw(poly)
-		pdraw.polygon(poly_seq, fill=(255,0,0,255))
+		for pl in polygon_road:
+			pdraw.polygon(pl, fill=(255,0,0,255))
 
 		poly2 = np.array(poly)
 
 		return{
 			'image' : image,
 			'gt_color' : poly2,
-			'gt_instancelds' : gt_instancelds,
-			'gt_label' : gt_label,
+			#'gt_instancelds' : gt_instancelds,
+			#'gt_label' : gt_label,
 			'gt_polygon' : gt_polygon
 		}
 
@@ -155,8 +161,8 @@ class Rescale(object):
     def __call__(self, sample):
         image = sample['image'] 
         gt_color = sample['gt_color']
-        gt_instancelds = sample['gt_instancelds']
-        gt_label = sample['gt_label']
+        #gt_instancelds = sample['gt_instancelds']
+        #gt_label = sample['gt_label']
         gt_polygon = sample['gt_polygon']
 
         #print(gt_color.shape)
@@ -175,10 +181,12 @@ class Rescale(object):
 
         new_h, new_w = int(new_h), int(new_w)
 
-        img = transform.resize(image, (new_h, new_w))
-        gt_col = transform.resize(gt_color, (new_h, new_w))
-        gt_instlds = transform.resize(gt_instancelds, (new_h, new_w))
-        gt_lab = transform.resize(gt_label, (new_h, new_w))
+        #img = transform.resize(image, (new_h, new_w), order=0)
+        #gt_col = transform.resize(gt_color, (new_h, new_w), order=0)
+        img = transform.rotate(image, 90,resize=True, order=0)
+        gt_col = transform.rotate(gt_color, 90,resize=True, order=0)
+        #gt_instlds = transform.resize(gt_instancelds, (new_h, new_w))
+        #gt_lab = transform.resize(gt_label, (new_h, new_w))
 
         #print(gt_col.shape)
         #print(gt_col[1000])
@@ -187,8 +195,8 @@ class Rescale(object):
 
         return {'image': img,
         		'gt_color' : gt_col,
-        		'gt_instancelds' : gt_instlds,
-        		'gt_label' : gt_lab,
+        		#'gt_instancelds' : gt_instlds,
+        		#'gt_label' : gt_lab,
         		'gt_polygon': gt_polygon}
 
 #------------------------------------------------------------
@@ -208,9 +216,7 @@ print(len(city_dataset))
 for i in range(len(city_dataset)):
 	sample = city_dataset[i]
 	print(i, sample['image'].shape, 
-		sample['gt_color'].shape, 
-		sample['gt_instancelds'].shape, 
-		sample['gt_label'].shape)
+		sample['gt_color'].shape) 
 	plt.imshow(sample['image'])
 	plt.pause(1)
 	plt.imshow(sample['gt_color'])
