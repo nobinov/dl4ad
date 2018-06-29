@@ -1,0 +1,14 @@
+digraph G {
+"mocap" -> "audi_ext_cal"[label="Broadcaster: /play_1530189594834581259\nAverage rate: 100.201 Hz\nMost recent transform: 1530124482.897 ( 65425.297 sec old)\nBuffer length: 4.980 sec\n"];
+"mocap" -> "measurement_wand_final"[label="Broadcaster: /play_1530189594834581259\nAverage rate: 100.199 Hz\nMost recent transform: 1530124482.907 ( 65425.288 sec old)\nBuffer length: 4.980 sec\n"];
+"pylon_camera" -> "output_camera"[label="Broadcaster: /play_1530189594834581259\nAverage rate: 5.208 Hz\nMost recent transform: 1530124482.742 ( 65425.453 sec old)\nBuffer length: 4.800 sec\n"];
+"audi_ext_cal" -> "front_cam"[label="Broadcaster: /play_1530189594834581259\nAverage rate: 10.175 Hz\nMost recent transform: 1530124483.062 ( 65425.133 sec old)\nBuffer length: 4.914 sec\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1530189908.195"[ shape=plaintext ] ;
+ }->"mocap";
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1530189908.195"[ shape=plaintext ] ;
+ }->"pylon_camera";
+}
